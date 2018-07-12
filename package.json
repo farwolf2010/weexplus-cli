@@ -1,0 +1,23 @@
+{
+  "name": "weexplus-cli",
+  "version": "1.0.0",
+  "description": "weexplus 的辅助工具",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/farwolf2010/weexplus-cli.git"
+  },
+  "keywords": [
+    "weex",
+    "weexplus"
+  ],
+  "author": "远方的WOLF",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/farwolf2010/weexplus-cli/issues"
+  },
+  "homepage": "https://github.com/farwolf2010/weexplus-cli#readme"
+}
