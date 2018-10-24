@@ -109,10 +109,12 @@ function renameAndroidAppId(dir,appid)
       var pathjava=dir+'/platforms/android/weexplus/app/src/main/java/com/farwolf/weexplus/MVApplication.java'
       var pathxml=dir+'/platforms/android/weexplus/app/src/main/AndroidManifest.xml'
       var gradle=dir+'/platforms/android/weexplus/app/build.gradle'
+      var properties=dir+'/platforms/android/weexplus/gradle.properties'
+
       replace({
         regex: "com.farwolf.weexplus",
         replacement: appid,
-        paths: [pathjava,pathxml,gradle],
+        paths: [pathjava,pathxml,gradle,properties],
         recursive: true,
         silent: true,
       });

@@ -69,6 +69,19 @@ function excute(cmd)
     var result=JSON.parse(fs.readFileSync(file, 'utf8'));
     return result;
  }
+function readProperties(path)
+{
+  var fs=require('fs');
+  var file=path;
+  var result=fs.readFileSync(file, 'utf8')
+  let p=result.split('\n')
+  let res={}
+  p.forEach((it)=>{
+    let q=it.split('=')
+    res[q[0]]=q[1]
+  })
+  return res;
+}
 
  function config()
  {
@@ -87,6 +100,6 @@ function isRootDir()
 }
  
 module.exports = {
-  checkPort,excute,open,readJson,isRootDir,config
+  checkPort,excute,open,readJson,isRootDir,config,readProperties
   
 };

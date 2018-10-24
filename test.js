@@ -1,4 +1,3 @@
-const logger=require('./scripts/logger')
-const server=require('./scripts/server')
-const s='sss/sss.jsx'
-logger.log(server.readAppboard())
+const util=require('./scripts/run/android')
+let res=util.runAndroid({})
+console.log(res)

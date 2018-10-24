@@ -5,6 +5,7 @@ const fs = require('fs')
 const inquirer = require('inquirer')
 const copy = require('recursive-copy')
 const utils = require('../utils')
+const util = require('../util')
 const startJSServer = require('./server')
 const {Config,androidConfigResolver} = require('../utils/config')
 /**
@@ -12,53 +13,58 @@ const {Config,androidConfigResolver} = require('../utils/config')
  * @param {Object} options
  */
 function runAndroid(options) {
-  console.log(` => ${chalk.blue.bold('npm install&build')}`)
-  utils.buildJS()
-   
-      .then(()=>{
-        var dir=options.dir;
-      return utils.exec('weexplus install '+options.dir)
-    })
-    .then(()=> {
-      // startJSServer()
-      return {options}
-    })
-    .then(prepareAndroid)
-    // .then(resolveConfig)
-    .then(findAndroidDevice)
-    .then(chooseDevice)
-    .then(reverseDevice)
-    .then(buildApp)
-    .then(installApp)
-    .then(runApp)
-    .catch((err) => {
-      if (err) {
-        console.log(chalk.red('Error:', err));
-      }
-    })
+  console.log(` => ${chalk.green.bold('weexplus run android')}`)
+  let dir=options.dir
+  let rootpath=process.cwd();
+  let p=util.readProperties(rootpath+'/platforms/android/'+dir+'/gradle.properties')
+  let appId=p.appId
+  utils.exec('weexplus copy')
+  .then(()=>{
+    return findAndroidDevice(options)
+  })
+  .then((res)=>{
+    return chooseDevice(res.devicesList,options)
+  })
+  .then((res)=>{
+    // console.log(res)
+    return reverseDevice(res.device,options)
+  })
+  .then(()=>{
+    process.chdir('platforms/android/'+dir)
+    var path=  process.cwd();
+      // console.log(path)
+    return utils.exec('gradle assembleDebug')
+  })
+  .then(()=>{
+    var path=  process.cwd();
+    var open=require('open')
+    process.chdir(path+'/app/build/outputs/apk')
+    return utils.exec('adb install -r app-debug.apk')
+  })
+  .then(()=>{
+    return utils.exec('adb shell am start -n  '+appId+'/com.farwolf.weex.activity.SplashActivity_')
+  })
+
+
+
+
 }
 
 function publish(options)
 {
-    utils.buildJS()
-   
-      .then(()=>{
-        var dir=options.dir;
-      return utils.exec('weexplus install ')
-    })
-    .then(()=> {
-      // startJSServer()
-      return {options}
-    })
-    .then(prepareAndroid)
-    .then(buildApp)
-    .then(()=>{
-
-        var path=  process.cwd();
-        console.log(path)
-          var open=require('open')
-          open(path+'/app/build/outputs/apk')
-    })
+  utils.exec('weex-builder src/native dist --ext --min').then(()=>{
+    return utils.exec('weexplus copy')
+  })
+  .then(()=>{
+    process.chdir('platforms/android/'+dir)
+    return utils.exec('gradle assembleRelease')
+  })
+  .then(()=>{
+    var path=  process.cwd();
+    console.log(path)
+    var open=require('open')
+    open(path+'/app/build/outputs/apk')
+  })
 
 }
 
@@ -140,7 +146,6 @@ function findAndroidDevice({options}) {
     }
 
     let devicesList = utils.parseDevicesResult(devicesInfo)
-
     resolve({devicesList, options})
   })
 }
@@ -150,7 +155,7 @@ function findAndroidDevice({options}) {
  * @param {Array} devicesList: name, version, id, isSimulator
  * @param {Object} options
  */
-function chooseDevice({devicesList, options}) {
+function chooseDevice(devicesList,options) {
   return new Promise((resolve, reject) => {
     if (devicesList && devicesList.length > 1) {
       const listNames = [new inquirer.Separator(' = devices = ')]
@@ -189,7 +194,7 @@ function chooseDevice({devicesList, options}) {
  * @param {String} device
  * @param {Object} options
  */
-function reverseDevice({device, options}) {
+function reverseDevice(device, options) {
   return new Promise((resolve, reject) => {
     try {
       let s = child_process.execSync(`adb -s ${device} reverse tcp:8080 tcp:8080`, {encoding: 'utf8'})
@@ -279,4 +284,4 @@ function runApp({device, options}) {
   })
 }
 
-module.exports = {runAndroid,publish}
+module.exports = {runAndroid,publish,findAndroidDevice}
