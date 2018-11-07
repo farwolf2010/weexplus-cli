@@ -1,12 +1,14 @@
 const fs = require('fs')
 const path = require('path');
 const output = require('./output')
+const log = require('./logger')
 const validator = require('./validator')
 const child_process = require('child_process')
 const os =require('os')
 const npm = require("npm");
 const utils = {
 
+  logger:log.logger,
   copyAndReplace(src, dest, replacements) {
     if (fs.lstatSync(src).isDirectory()) {
       if (!fs.existsSync(dest)) {
@@ -91,10 +93,18 @@ const utils = {
     }
     return devices;
   },
+// {
+//   encoding: 'utf8',
+//   timeout: 0, /*子进程最长执行时间 */
+//   maxBuffer: 20000*1024,  /*stdout和stderr的最大长度*/
+//   killSignal: 'SIGTERM',
+//   cwd: null,
+//   env: null
+// }
   exec(command,quiet){
     return new Promise((resolve, reject)=> {
       try {
-        let child = child_process.exec(command, {encoding: 'utf8'}, function () {
+        let child = child_process.exec(command, {encoding: 'utf8',maxBuffer: 20000*10204,timeout: 0,killSignal: 'SIGTERM',}, function () {
           resolve();
         })
         if(!quiet){
@@ -102,11 +112,22 @@ const utils = {
         }
         child.stderr.pipe(process.stderr);
       }catch(e){
-        console.error('execute command failed :',command);
+        console.error('execute command failed :',e);
         reject(e);
       }
     })
 
+  },
+  execSync(command,quiet){
+    try {
+      let child = child_process.execSync(command, {encoding: 'utf8'})
+
+      if(!quiet){
+        console.log(child)
+      }
+    }catch(e){
+      console.error('execute command failed :',e);
+    }
   },
   buildJS(cmd = 'build',dir){
     return utils.exec('npm install',true).then(()=> {

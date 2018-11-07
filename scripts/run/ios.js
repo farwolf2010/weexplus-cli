@@ -1,125 +1,191 @@
-const path = require('path')
-const chalk = require('chalk')
-const child_process = require('child_process')
-const inquirer = require('inquirer')
-const fs = require('fs')
-const utils = require('../utils')
-const startJSServer = require('./server')
-const {Config,iOSConfigResolver} = require('../utils/config')
+const path = require('path');
+const chalk = require('chalk');
+const childprocess = require('child_process');
+const inquirer = require('inquirer');
+const copy = require('recursive-copy');
+const fs = require('fs');
+const utils = require('../utils');
+const server = require('./server');
+const chokidar = require('chokidar');
+const WebSocket = require('ws');
+const home = require('user-home')
+const exit = require('exit');
+const _ = require('underscore');
+const logger = utils.logger;
+const {
+  PlatformConfig,
+  iOSConfigResolver,
+  Platforms
+} = require('../utils/config');
+
 /**
- * Run iOS app
+ * compile jsbundle.
+ */
+const copyJsbundleAssets = (dir, src, dist, quiet) => {
+  const options = {
+    filter: [
+      '**/*.js',
+      '!**/*.web.js'
+    ],
+    overwrite: true
+  };
+  if (!quiet) {
+    logger.info(`Move JSbundle to dist`);
+    return copy(path.join(dir, 'dist'), path.join(dir, 'platforms/ios/bundlejs/'), options)
+    .on(copy.events.COPY_FILE_START, function (copyOperation) {
+      logger.verbose('Copying file ' + copyOperation.src + '...');
+    })
+    .on(copy.events.COPY_FILE_COMPLETE, function (copyOperation) {
+      logger.verbose('Copied to ' + copyOperation.dest);
+    })
+    .on(copy.events.ERROR, function (error, copyOperation) {
+      logger.error('Error:' + error.stack);
+      logger.error('Unable to copy ' + copyOperation.dest);
+    })
+    .then(result => {
+      logger.verbose(`Move ${result.length} files.`);
+    });
+  }
+  return copy(path.join(dir, 'dist'), path.join(dir, 'platforms/ios/bundlejs/'), options);
+};
+
+/**
+ * pass options.
  * @param {Object} options
  */
-function runIOS(options) {
-  utils.checkAndInstallForIosDeploy()
-    .then(utils.buildJS('build',options.dir))
-    .then(()=>{
-      return utils.exec('rsync  -r -q  dist/* platforms/ios/'+options.dir+'/app/')
-    })
-    .then(()=> {
-      startJSServer()
-      return {options}
-    }).then(prepareIOS)
-     .then(installDep)
-    .then(findIOSDevice)
-    .then(chooseDevice)
-    .then(buildApp)
-    .then(runApp)
-    .catch((err) => {
-      if (err) {
-        try {
-          if(err.stderr){
-            console.log(err.stderr)
-          }
-          else{
-            console.log(err);
-          }
-          if(err.output)console.log(err.output.join('\n'))
-        }catch(e){
-          console.log(e);
-        }
-      }
-    })
-}
-
-
-function publish(options)
-{
-     utils.checkAndInstallForIosDeploy()
-    .then(utils.buildJS('build',options.dir))
-    .then(()=>{
-      return utils.exec('rsync  -r -q  dist/* platforms/ios/'+options.dir+'/app/')
-    })
-    .then(()=> {
-      startJSServer()
-      return {options}
-    }).then(prepareIOS)
-     .then(installDep)
-    .then(buildApp)
-    .then(()=>{
-
-        var path=  process.cwd();
-        console.log(path)
-          var open=require('open')
-          open(path)
-    })
-}
-
-function podInstall(options)
-{
-    utils.checkAndInstallForIosDeploy()
-    .then(utils.buildJS('build',options.dir))
-     .then(prepareIOS)
-     .then(installDep)
- 
-     
-}
+const passOptions = (options) => {
+  logger.verbose(`passOptions ${options}.`);
+  return new Promise((resolve, reject) => {
+    resolve({
+      options
+    });
+  });
+};
 
 /**
  * Prepare
  * @param {Object} options
  */
-function prepareIOS({options}) {
+const prepareIOS = ({ options }) => {
+  logger.verbose(`prepareIOS  with ${options}.`);
   return new Promise((resolve, reject) => {
-    const rootPath = process.cwd()
+    const rootPath = process.cwd();
+    console.log('rootPath='+rootPath)
     if (!utils.checkIOS(rootPath)) {
-      console.log()
-      console.log(chalk.red('  iOS project not found !'))
-      console.log()
-      console.log(`  You should run ${chalk.blue('weexpack create')} or ${chalk.blue('weexpack platform add ios')} first`)
-      reject()
+      logger.error('iOS project not found !');
+      logger.info(`You should run ${chalk.blue('weex create')} or ${chalk.blue('weex platform add ios')} first`);
+      reject();
     }
-
     // change working directory to ios
     process.chdir(path.join(rootPath, 'platforms/ios/'+options.dir))
-    console.log(chalk.green(rootPath+'/platforms/ios/'+options.dir))
-    const xcodeProject = utils.findXcodeProject(process.cwd())
-     console.log(xcodeProject)
+    const xcodeProject = utils.findXcodeProject(process.cwd());
+
     if (xcodeProject) {
-      console.log()
-      console.log(` => ${chalk.blue.bold('Will start iOS app')}`)
-      resolve({xcodeProject, options, rootPath})
-    } else {
-      console.log()
-      console.log(`  ${chalk.red.bold('Could not find Xcode project files in ios folder')}`)
-      console.log()
-      console.log(`  Please make sure you have installed iOS Develop Environment and CocoaPods`)
-      console.log(`  See ${chalk.cyan('http://alibaba.github.io/weex/doc/advanced/integrate-to-ios.html')}`)
-      reject()
+      logger.info(`start iOS app`);
+      resolve({ xcodeProject, options, rootPath });
     }
-  })
+    else {
+      logger.info(`Could not find Xcode project files in ios folder.`);
+      logger.info(`Please make sure you have installed iOS Develop Environment and CocoaPods`);
+      reject();
+    }
+  });
+};
+
+/**
+ * @desc start websocker server for hotreload
+ * @param {Object} xcodeProject
+ * @param {Object} options
+ * @param {String} rootPath
+ * @param {Object} configs
+ */
+const startHotReloadServer = (
+{
+  xcodeProject,
+  options,
+  rootPath
 }
+) => {
+
+  return server.startWsServer(rootPath).then(({ host, ip, port }) => {
+    const configs = _.extend({}, { Ws: host, ip, port });
+    return {
+      xcodeProject,
+      options,
+      rootPath,
+      configs
+    };
+  });
+};
+
+/**
+ * @desc when the source file changed, tell native to reload the page.
+ * @param {Object} options
+ * @param {String} rootPath
+ * @param {Object} configs
+ */
+const registeFileWatcher = (
+{
+  xcodeProject,
+  options,
+  rootPath,
+  configs
+}
+) => {
+  const ws = new WebSocket(configs.Ws);
+  // build js on watch mode.
+  utils.buildJS('dev', true);
+
+  // file watch task
+  chokidar.watch(path.join(rootPath, 'dist'), { ignored: /\w*\.web\.js$/ })
+  .on('change', (event) => {
+    copyJsbundleAssets(rootPath, 'dist', 'platforms/ios/bundlejs/', true).then(() => {
+      if (path.basename(event) === configs.WeexBundle) {
+        logger.log(`Wait Reload...`);
+        ws.send(JSON.stringify({ method: 'WXReloadBundle', params: `http://${configs.ip}:${configs.port}/${configs.WeexBundle}` }));
+      }
+    });
+  });
+  return {
+    xcodeProject,
+    options,
+    rootPath,
+    configs
+  };
+};
+
+/**
+ * @desc resolve config in the android project
+ * @param {Object} options
+ * @param {String} rootPath
+ */
+const resolveConfig = ({
+                         xcodeProject,
+                         options,
+                         rootPath,
+                         configs
+                       }) => {
+  const iosConfig = new PlatformConfig(iOSConfigResolver, rootPath, Platforms.ios, configs);
+  return iosConfig.getConfig().then((configs) => {
+    iOSConfigResolver.resolve(configs);
+    return {
+      xcodeProject,
+      options,
+      rootPath,
+      configs
+    };
+  });
+};
 
 /**
  * Install dependency
  * @param {Object} xcode project
  * @param {Object} options
  */
-function installDep({xcodeProject, options,rootPath}) {
-  console.log(` => ${chalk.blue.bold('pod update')}`)
-  return utils.exec('pod install').then(()=>({xcodeProject, options, rootPath}))
-  return true;
-}
+const installDep = ({ xcodeProject, options, rootPath, configs }) => {
+  logger.info(`pod install`);
+  return utils.exec('pod install').then(() => ({ xcodeProject, options, rootPath, configs }));
+};
 
 /**
  * find ios devices
@@ -127,18 +193,19 @@ function installDep({xcodeProject, options,rootPath}) {
  * @param {Object} options
  * @return {Array} devices lists
  */
-function findIOSDevice({xcodeProject, options,rootPath}) {
+const findIOSDevice = ({ xcodeProject, options, rootPath, configs }) => {
   return new Promise((resolve, reject) => {
-    let deviceInfo = ''
+    let deviceInfo = '';
     try {
-      deviceInfo = child_process.execSync('xcrun instruments -s devices', {encoding: 'utf8'})
-    } catch (e) {
-      reject(e)
+      deviceInfo = childprocess.execSync('xcrun instruments -s devices', { encoding: 'utf8' });
     }
-    let devicesList = utils.parseIOSDevicesList(deviceInfo)
-    resolve({devicesList, xcodeProject, options, rootPath})
-  })
-}
+    catch (e) {
+      reject(e);
+    }
+    const devicesList = utils.parseIOSDevicesList(deviceInfo);
+    resolve({ devicesList, xcodeProject, options, rootPath, configs });
+  });
+};
 
 /**
  * Choose one device to run
@@ -147,36 +214,37 @@ function findIOSDevice({xcodeProject, options,rootPath}) {
  * @param {Object} options
  * @return {Object} device
  */
-function chooseDevice({devicesList, xcodeProject, options,rootPath}) {
+const chooseDevice = ({ devicesList, xcodeProject, options, rootPath, configs }) => {
   return new Promise((resolve, reject) => {
     if (devicesList && devicesList.length > 0) {
-      const listNames = [new inquirer.Separator(' = devices = ')]
+      const listNames = [new inquirer.Separator(' = devices = ')];
       for (const device of devicesList) {
         listNames.push(
-          {
-            name: `${device.name} ios: ${device.version}`,
-            value: device
-          }
-        )
+        {
+          name: `${device.name} ios: ${device.version} ${device.isSimulator ? '(Simulator)' : ''}`,
+          value: device
+        }
+        );
       }
 
       inquirer.prompt([
-          {
-            type: 'list',
-            message: 'Choose one of the following devices',
-            name: 'chooseDevice',
-            choices: listNames
-          }
-        ])
-        .then((answers) => {
-          const device = answers.chooseDevice
-          resolve({device, xcodeProject, options, rootPath})
-        })
-    } else {
-      reject('No ios devices found.')
+        {
+          type: 'list',
+          message: 'Choose one of the following devices',
+          name: 'chooseDevice',
+          choices: listNames
+        }
+      ])
+      .then((answers) => {
+        const device = answers.chooseDevice;
+        resolve({ device, xcodeProject, options, rootPath, configs });
+      });
     }
-  })
-}
+    else {
+      reject('No ios devices found.');
+    }
+  });
+};
 
 /**
  * build the iOS app on simulator or real device
@@ -184,24 +252,25 @@ function chooseDevice({devicesList, xcodeProject, options,rootPath}) {
  * @param {Object} xcode project
  * @param {Object} options
  */
-function buildApp({device, xcodeProject, options,rootPath}) {
-  return new Promise((resolve, reject) => {
-    let projectInfo = ''
-    try {
-      projectInfo = utils.getIOSProjectInfo();
-    } catch (e) {
-      reject(e)
-    }
+const buildApp = ({ device, xcodeProject, options, rootPath, configs,resolve, reject }) => {
+  let projectInfo = '';
+  try {
+    projectInfo = utils.getIOSProjectInfo();
+  }
+  catch (e) {
+    reject(e);
+  }
+  console.log('resolve='+resolve)
 
-    const scheme = projectInfo.project.schemes[0]
+  const scheme = projectInfo.project.schemes[0];
 
-    if (device.isSimulator) {
-      _buildOnSimulator({scheme, device, xcodeProject, options, resolve, reject, rootPath})
-    } else {
-      _buildOnRealDevice({scheme, device, xcodeProject, options, resolve, reject, rootPath})
-    }
-  })
-}
+  if (device.isSimulator) {
+   return _buildOnSimulator({ scheme, device, xcodeProject, options, resolve, reject, rootPath, configs });
+  }
+  else {
+    return _buildOnRealDevice({ scheme, device, xcodeProject, options,  rootPath, configs,resolve, reject});
+  }
+};
 
 /**
  * build the iOS app on simulator
@@ -209,19 +278,19 @@ function buildApp({device, xcodeProject, options,rootPath}) {
  * @param {Object} xcode project
  * @param {Object} options
  */
-function _buildOnSimulator({scheme, device, rootPath,xcodeProject, options, resolve, reject}) {
-  console.log('project is building ...')
-  let buildInfo = ''
+const _buildOnSimulator = ({ scheme, device, rootPath, xcodeProject, options, configs, resolve, reject }) => {
+  logger.info(`Buiding project...`);
   try {
-    // let config=require(path.join(rootPath,'ios.config.json'));
-    // fs.writeFileSync(path.join(process.cwd(), 'bundlejs/index.js'), fs.readFileSync(path.join(process.cwd(), '../../dist', config.WeexBundle.replace(/\.(we|vue)$/, '.js'))));
-
-    buildInfo = child_process.execSync(`xcodebuild -${xcodeProject.isWorkspace ? 'workspace' : 'project'} ${xcodeProject.name} -scheme ${scheme} -configuration Debug -destination id=${device.udid} -sdk iphonesimulator -derivedDataPath build clean build`, {encoding: 'utf8'})
-  } catch (e) {
-    reject(e)
+    if (_.isEmpty(configs)) {
+      reject(new Error('iOS config dir not detected.'));
+    }
+    childprocess.execSync(`xcodebuild -${xcodeProject.isWorkspace ? 'workspace' : 'project'} ${xcodeProject.name} -scheme ${scheme} -configuration Debug -destination id=${device.udid} -sdk iphonesimulator -derivedDataPath build clean build`, { encoding: 'utf8' });
   }
-  resolve({device, xcodeProject, options})
-}
+  catch (e) {
+    reject(e);
+  }
+  resolve({ device, xcodeProject, options, configs });
+};
 
 /**
  * build the iOS app on real device
@@ -229,31 +298,14 @@ function _buildOnSimulator({scheme, device, rootPath,xcodeProject, options, reso
  * @param {Object} xcode project
  * @param {Object} options
  */
-function _buildOnRealDevice({scheme, device, xcodeProject, options, resolve, reject,rootPath}) {
-  // @TODO support debug on real device
-  // let iOSConfig = new Config(iOSConfigResolver, path.join(rootPath, 'ios.config.json'))
-  // iOSConfig.getConfig().then((config) => {
-  //   try {
-  //     // iOSConfigResolver.resolve(config);
-  //     // fs.writeFileSync(path.join(process.cwd(), 'bundlejs/index.js'), fs.readFileSync(path.join(process.cwd(), '../../dist', config.WeexBundle.replace(/\.we$/, '.js'))));
-  //     resolve({device, xcodeProject, options, rootPath});
-  //   }
-  //   catch (e) {
-  //     console.log(e);
-  //   }
+const _buildOnRealDevice = ({ scheme, device, xcodeProject, options,  rootPath, configs,resolve  }) => {
 
-  // }, (e)=>reject(e))
+  logger.info(`Buiding project...`);
+  let cmd='xcodebuild -workspace '+scheme+'.xcworkspace -scheme '+scheme+' -configuration Debug -sdk iphoneos clean build'
+  return utils.exec(cmd)
 
-  try {
-      // iOSConfigResolver.resolve(config);
-      // fs.writeFileSync(path.join(process.cwd(), 'bundlejs/index.js'), fs.readFileSync(path.join(process.cwd(), '../../dist', config.WeexBundle.replace(/\.we$/, '.js'))));
-      resolve({device, xcodeProject, options, rootPath});
-    }
-    catch (e) {
-      console.log(e);
-    }
 
-}
+};
 
 /**
  * Run the iOS app on simulator or device
@@ -261,15 +313,17 @@ function _buildOnRealDevice({scheme, device, xcodeProject, options, resolve, rej
  * @param {Object} xcode project
  * @param {Object} options
  */
-function runApp({device, xcodeProject, options}) {
+const runApp = ({ device, xcodeProject, options, configs }) => {
   return new Promise((resolve, reject) => {
     if (device.isSimulator) {
-      _runAppOnSimulator({device, xcodeProject, options, resolve, reject})
-    } else {
-      _runAppOnDevice({device, xcodeProject, options, resolve, reject})
+      _runAppOnSimulator({ device, xcodeProject, options, configs, resolve, reject });
     }
-  })
-}
+    else {
+      // reject(`weex don't support run on real device, please use simulator on Xcode.`)
+      _runAppOnDevice({ device, xcodeProject, options, configs, resolve, reject });
+    }
+  });
+};
 
 /**
  * Run the iOS app on simulator
@@ -277,73 +331,78 @@ function runApp({device, xcodeProject, options}) {
  * @param {Object} xcode project
  * @param {Object} options
  */
-function _runAppOnSimulator({device, xcodeProject, options, resolve, reject}) {
-  const inferredSchemeName = path.basename(xcodeProject.name, path.extname(xcodeProject.name))
-  const appPath = `build/Build/Products/Debug-iphonesimulator/${inferredSchemeName}.app`
-  const bundleID = child_process.execFileSync(
+const _runAppOnSimulator = ({ device, xcodeProject, options, configs, resolve, reject }) => {
+  const inferredSchemeName = path.basename(xcodeProject.name, path.extname(xcodeProject.name));
+  let appPath;
+  if (options.iosBuildPath && fs.existsSync(options.iosBuildPath)) {
+    appPath = options.iosBuildPath;
+  }
+  else if (fs.existsSync(path.join(home, `Library/Developer/Xcode/DerivedData/Build/Products/Debug-iphonesimulator/${inferredSchemeName}.app`))) {
+    appPath = path.join(home, `Library/Developer/Xcode/DerivedData/Build/Products/Debug-iphonesimulator/${inferredSchemeName}.app`);
+  }
+  else if(fs.existsSync(`build/Build/Products/Debug-iphonesimulator/${inferredSchemeName}.app`)) {
+    appPath = `build/Build/Products/Debug-iphonesimulator/${inferredSchemeName}.app`
+  }
+  else {
+    reject(`You may had custome your XCode Deviced Data path, please use \`--iosBuildPath\` to set your path.`);
+    return;
+  }
+  logger.info(`Run iOS Simulator..`);
+  try {
+    childprocess.execFileSync(
     '/usr/libexec/PlistBuddy',
     ['-c', 'Print:CFBundleIdentifier', path.join(appPath, 'Info.plist')],
-    {encoding: 'utf8'}
-  ).trim()
-
-  let simctlInfo = ''
-  try {
-    simctlInfo = child_process.execSync('xcrun simctl list --json devices', {encoding: 'utf8'})
+    { encoding: 'utf8' }
+    ).trim();
   } catch (e) {
-    reject(e)
+    reject(e);
+    return;
   }
-  simctlInfo = JSON.parse(simctlInfo)
+  let simctlInfo = '';
+  try {
+    simctlInfo = childprocess.execSync('xcrun simctl list --json devices', { encoding: 'utf8' });
+  }
+  catch (e) {
+    reject(e);
+    return;
+  }
+  simctlInfo = JSON.parse(simctlInfo);
 
   if (!simulatorIsAvailable(simctlInfo, device)) {
-    reject('simulator is not available!')
+    reject('simulator is not available!');
+    return;
   }
 
-  console.log(`Launching ${device.name}...`)
+  logger.info(`Launching ${device.name}...`);
 
   try {
-    child_process.execSync(`xcrun instruments -w ${device.udid}`, {encoding: 'utf8'})
-  } catch (e) {
+    childprocess.execSync(`xcrun instruments -w ${device.udid}`, { encoding: 'utf8', stdio: 'ignore' });
+  }
+  catch (e) {
     // instruments always fail with 255 because it expects more arguments,
     // but we want it to only launch the simulator
   }
 
-  console.log(`Installing ${appPath}`)
+  logger.info(`Installing ${appPath}`);
 
   try {
-    child_process.execSync(`xcrun simctl install booted ${appPath}`, {encoding: 'utf8'})
-  } catch (e) {
-    reject(e)
+    childprocess.execSync(`xcrun simctl install booted ${appPath}`, { encoding: 'utf8' });
+  }
+  catch (e) {
+    reject(e);
+    return;
   }
 
   try {
-    child_process.execSync(`xcrun simctl launch booted ${bundleID}`, {encoding: 'utf8'})
-  } catch (e) {
-    reject(e)
+    childprocess.execSync(`xcrun simctl launch booted ${configs.AppId}`, { encoding: 'utf8' });
   }
-  console.log('Success!')
-  resolve()
-}
-
-/**
- * check simulator is available
- * @param {JSON} info simulator list
- * @param {Object} device user choose one
- * @return {boolean} simulator is available
- */
-function simulatorIsAvailable(info, device) {
-  // console.log(device)
-  info = info.devices
-  simList = info['iOS ' + device.version]
-  if(simList==undefined)
-  {
-    return false;
+  catch (e) {
+    reject(e);
+    return;
   }
-  for (const sim of simList) {
-    if (sim.udid === device.udid) {
-      return sim.availability === '(available)'
-    }
-  }
-}
+  logger.success('Success!');
+  resolve();
+};
 
 /**
  * Run the iOS app on device
@@ -351,28 +410,141 @@ function simulatorIsAvailable(info, device) {
  * @param {Object} xcode project
  * @param {Object} options
  */
-function _runAppOnDevice({device, xcodeProject, options, resolve, reject}) {
+const _runAppOnDevice = ({ device, xcodeProject, options, resolve, reject }) => {
   // @TODO support run on real device
- 
- console.log('__dirname======='+__dirname)
- const appPath = 'build/Debug-iphoneos/'+options.dir+'.app'
-  const deviceId = device.udid
-   console.log('appPath======='+fs.existsSync(appPath))
-   // console.log(child_process.cwd())
-  try {
-    if (!fs.existsSync(appPath)) {
-      console.log('building...');
-      child_process.execSync(path.join(__dirname, 'lib/cocoapods-build') + ' . Debug', {encoding: 'utf8'})
-
-    }
-
-    console.log(child_process.execSync(`../../../node_modules/.bin/ios-deploy --justlaunch --debug --id ${deviceId} --bundle ${path.resolve(appPath)}`, {encoding: 'utf8'}))
-  } catch (e) {
-    reject(e)
+  let inferredSchemeName=options.dir
+  let y=path.join(home, `Library/Developer/Xcode/DerivedData/Build/Products/Debug-iphoneos/${inferredSchemeName}.app`)
+  console.log('sssss='+y)
+  const deviceId = device.udid;
+  let appPath;
+  if (options.iosBuildPath && fs.existsSync(options.iosBuildPath)) {
+    appPath = options.iosBuildPath;
   }
-  console.log('Success!')
-  // reject('Weex-Pack don\'t support run on real device. see you next version!')
+  else if (fs.existsSync(path.join(home, `Library/Developer/Xcode/DerivedData/Build/Products/Debug-iphoneos/${inferredSchemeName}.app`))) {
+    appPath = path.join(home, `Library/Developer/Xcode/DerivedData/Build/Products/Debug-iphoneos/${inferredSchemeName}.app`);
+  }
+  else if(fs.existsSync(`build/Build/Products/Debug-iphoneos/${inferredSchemeName}.app`)) {
+    appPath = `build/Build/Products/Debug-iphoneos/${inferredSchemeName}.app`
+  }
+  else {
+    reject(`You may had custome your XCode Deviced Data path, please use \`--iosBuildPath\` to set your path.`);
+    return;
+  }
+  logger.info(`Run iOS Device..`);
+  try {
+    var px=__dirname.split('weexplus')[0]+'weexplus/node_modules/.bin/ios-deploy'
+
+    logger.info(childprocess.execSync(px+` --justlaunch --debug --id ${deviceId} --bundle ${path.resolve(appPath)}`, { encoding: 'utf8' }));
+    logger.info('Success!');
+  }
+  catch (e) {
+    reject(e);
+  }
+};
+
+/**
+ * check simulator is available
+ * @param {JSON} info simulator list
+ * @param {Object} device user choose one
+ * @return {boolean} simulator is available
+ */
+const simulatorIsAvailable = (info, device) => {
+  info = info.devices;
+  let simList;
+  // simList = info['iOS ' + device.version]
+  for (const key in info) {
+    if (key.indexOf('iOS') > -1) {
+      simList = info[key];
+      for (const sim of simList) {
+        if (sim.udid === device.udid) {
+          return sim.availability === '(available)';
+        }
+      }
+    }
+  }
+};
+
+/**
+ * Run iOS app
+ * @param {Object} options
+ */
+const runIOS = (options) => {
+  // logger.info(options.dir)
+  // return
+  logger.info(`npm run build`);
+  utils.exec('weexplus copy').then(()=>{
+    return {options}
+  })
+  .then(prepareIOS)
+  .then(installDep)
+  .then(findIOSDevice)
+  .then(chooseDevice)
+  .then((p)=>{
+      buildApp(p).then(()=>{
+        runApp(p)
+      })
+  })
+
+};
+
+
+function publish(options)
+{
+  let dir=options.dir
+  let root=process.cwd()+'/platforms/ios/'+dir+'/'
+  console.log(root)
+  let outputPath=root+'products/'
+  utils.exec('rm -rf dist/*').then(()=>{
+    return utils.exec('weex-builder src/native dist --ext --min')
+  })
+  .then(()=>{
+    return utils.exec('weexplus copy')
+  })
+  .then(()=>{
+    return {options}
+  })
+  .then(prepareIOS)
+  .then(installDep)
+  .then((p)=>{
+    // let cmd=  'xcodebuild -workspace  '+p.scheme+'.xcworkspace -scheme '+p.scheme+' -configuration Release -sdk iphoneos build archive -archivePath  '+root+'/archive'
+    // let cmd='xcodebuild -workspace '+scheme+'.xcworkspace -scheme '+scheme+' -configuration Debug -sdk iphoneos clean build'
+    let cmd='xcodebuild -workspace '+root+dir+'.xcworkspace -scheme '+dir+' -configuration Release -sdk iphoneos build archive -archivePath '+outputPath+'/archive'
+    console.log('xx='+cmd)
+    return utils.exec(cmd)
+  })
+  .then(()=>{
+       let cmd='xcodebuild -exportArchive —exportFormat ipa -archivePath '+outputPath+'/archive.xcarchive -exportPath  '+outputPath+dir+'.ipa -exportOptionsPlist  '+root+'ExportOption.plist'
+    console.log('xx='+cmd)
+    return utils.exec(cmd)
+  })
+  .then(()=>{
+    var path=  process.cwd();
+    console.log(path)
+    var open=require('open')
+    open(outputPath+dir+'.ipa')
+  })
+
 }
+// function publish(options)
+// {
+//   utils.checkAndInstallForIosDeploy()
+//   .then(utils.buildJS('build',options.dir))
+//   .then(()=>{
+//     return utils.exec('rsync  -r -q  dist/* platforms/ios/'+options.dir+'/app/')
+//   })
+//   .then(()=> {
+//     startJSServer()
+//     return {options}
+//   }).then(prepareIOS)
+//   .then(installDep)
+//   .then(buildApp)
+//   .then(()=>{
+//
+//     var path=  process.cwd();
+//     console.log(path)
+//     var open=require('open')
+//     open(path)
+//   })
+// }
 
-
-module.exports = {runIOS,publish}
+module.exports = {runIOS,_buildOnRealDevice,publish}

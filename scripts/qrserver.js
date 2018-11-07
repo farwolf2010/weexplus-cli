@@ -12,7 +12,7 @@ function start(dist,distport)
 	  if(distport==undefined)
 	  	distport=9999
 	    
-	  var path=__dirname.split('weexplus')[0]+'weexplus/assets/'
+	  var path=__dirname.split('weexplus')[0]+'weexplus/assets'
 	  server.start(path,serverport,false);
       server.start(dist,distport,false);
 

@@ -107,6 +107,8 @@ function install(dir)
 function renameAndroidAppId(dir,appid)
 {
       var pathjava=dir+'/platforms/android/weexplus/app/src/main/java/com/farwolf/weexplus/MVApplication.java'
+      var wxentry=dir+'/platforms/android/weexplus/app/src/main/java/com/farwolf/weexplus/wxapi/WXEntryActivity.java'
+      var payentry=dir+'/platforms/android/weexplus/app/src/main/java/com/farwolf/weexplus/wxapi/WXPayEntryActivity.java'
       var pathxml=dir+'/platforms/android/weexplus/app/src/main/AndroidManifest.xml'
       var gradle=dir+'/platforms/android/weexplus/app/build.gradle'
       var properties=dir+'/platforms/android/weexplus/gradle.properties'
@@ -114,7 +116,7 @@ function renameAndroidAppId(dir,appid)
       replace({
         regex: "com.farwolf.weexplus",
         replacement: appid,
-        paths: [pathjava,pathxml,gradle,properties],
+        paths: [pathjava,pathxml,gradle,properties,wxentry,payentry],
         recursive: true,
         silent: true,
       });
