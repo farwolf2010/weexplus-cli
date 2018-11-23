@@ -11,7 +11,7 @@
 					<key>kind</key>
 					<string>software-package</string>
 					<key>url</key>
-					<string>http://28.163.1.44:8088/wit/wit.ipa</string>
+					<string>http://10.23.2.198:8228/wit.ipa</string>
 				</dict>
 			</array>
 			<key>metadata</key>
