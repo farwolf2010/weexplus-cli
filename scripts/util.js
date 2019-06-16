@@ -58,7 +58,7 @@ function excute(cmd)
       {
          app='google chrome'
       }
-     opn(url, app);
+     opn(url);
  }
 
 
@@ -78,6 +78,7 @@ function readProperties(path)
   let res={}
   p.forEach((it)=>{
     let q=it.split('=')
+      if(q.length==2)
     res[q[0]]=q[1]
   })
   return res;

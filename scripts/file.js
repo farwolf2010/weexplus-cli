@@ -13,9 +13,12 @@ const copy = ( src, dst) => {
                 if(st.isFile()){
                   // console.log('copy file')
                    copyFile(src,dst)
+                    resolve()
                 }else if(st.isDirectory()){
 
-                     copyDir(src,dst)
+                     copyDir(src,dst).then(()=>{
+                       resolve()
+                     })
                 }
             });
              
@@ -23,17 +26,8 @@ const copy = ( src, dst) => {
 };
 
 const copyFile = ( src, dst) => {
-  return new Promise((resolve, reject) => {
-       
-                if(!fs.existsSync(dst) )
-                    {
-                          // console.log('创造'+dst)
-                          fs.writeFileSync(dst,'cc',{flag:'w',encoding:'utf-8',mode:'07777'});
-                    }
-           var  readable=fs.createReadStream(src);//创建读取流
-           var  writable=fs.createWriteStream(dst);//创建写入流
-            readable.pipe(writable); 
-  });
+    let content = fs.readFileSync(src);
+    fs.writeFileSync(dst, content);
 };
 
 const copyDir = ( src, dst) => {
@@ -68,43 +62,46 @@ const copyDir = ( src, dst) => {
                     writable=fs.createWriteStream(_dst);//创建写入流
                     readable.pipe(writable);
                 }else if(st.isDirectory()){
-                    exist(_src,_dst,copy);
+                  // console.log('xxxx='+_src)
+                   if(_src.indexOf('dist/web')==-1){
+                     exist(_src,_dst,copy);
+                   }
                 }
             });
         });
+       resolve()
     });
              
   });
 };
 
 const del = (path) => {
-  return new Promise((resolve, reject) => {
-    // path='dist/img'
- // console.log(path)
-     var del = require('delete');
-     del.sync(path, {force: true});
-   })
-             
+ //  return new Promise((resolve, reject) => {
+ //    // path='dist/img'
+ // // console.log(path)
+ //     var del = require('delete');
+ //     del.sync(path, {force: true});
+ //      resolve()
+ //   })
+ //
+    var del = require('delete');
+    del.sync(path, {force: true});
 
 };
 
 
 
 const mkdir = (dirname) => {
-  return new Promise((resolve, reject) => {
-     
-       if (fs.existsSync(dirname)) {  
-            return true;  
-        } else {  
-            if (mkdir(path.dirname(dirname))) {  
-                fs.mkdirSync(dirname);  
-                return true;  
-            }  
-        }  
+    if (fs.existsSync(dirname)) {
+        return true;
+    } else {
+        if (mkdir(path.dirname(dirname))) {
+            fs.mkdirSync(dirname);
+            return true;
+        }
+    }
 
 
-    });  
-             
 
 };
 

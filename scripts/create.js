@@ -32,11 +32,9 @@ function makeProject() {
         },
         message: "请输入appId.",
         validate: function (value) {
-            if(value.split('.').length!=3)
+            if(value=='')
             {
-
-                  return '请输入合法的appid，格式xxx.xxx.xxx例如(com.baidu.app)';
-
+                return '请输入appid，以点号分隔，例如(com.baidu.app)';
             }
             return true
         }
@@ -57,12 +55,6 @@ function makeProject() {
         let {project,appName , appId} = _answers
         const targetDir = path.join(process.cwd(), _answers.project)
         fs.stat(targetDir, (err, stat) => {
-
-            if (_answers.appId.split('.').length != 3) {
-
-                console.log(chalk.red('请输入合法的appid，格式xxx.xxx.xxx例如(com.baidu.app)'));
-                return;
-            }
 
             const rootPath = process.cwd()
             console.log(path.join(process.cwd(), _answers.project))

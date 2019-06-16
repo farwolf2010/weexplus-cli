@@ -61,7 +61,7 @@ const start = (path,isdirectory,callback) => {
 
 				     	 	
 				     	 	   setTimeout(function(){
-				     	 	   	console.log('dsdsdsdsdsd')
+				     	 	   	// console.log('dsdsdsdsdsd')
 					             startwatch(path,callback) 
 					           },3000);
 

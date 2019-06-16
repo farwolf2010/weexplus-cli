@@ -11,8 +11,11 @@ function start(dist,distport)
 	  var proxyport=8890;
 	  if(distport==undefined)
 	  	distport=9999
-	    
-	  var path=__dirname.split('weexplus')[0]+'weexplus/assets'
+      let sp='weexplus'
+      if(__dirname.indexOf('weexplus-cli')!=-1){
+	      sp='weexplus-cli'
+      }
+	  var path=__dirname.split(sp)[0]+sp+'/assets'
 	  server.start(path,serverport,false);
       server.start(dist,distport,false);
 

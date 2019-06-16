@@ -2,12 +2,15 @@ const fs = require('fs')
 const path = require('path');
 const output = require('./output')
 const log = require('./logger')
+const regex = require('./regex')
 const validator = require('./validator')
 const child_process = require('child_process')
 const os =require('os')
 const npm = require("npm");
 const utils = {
 
+  regex:regex.regex,
+  regexOne:regex.regexOne,
   logger:log.logger,
   copyAndReplace(src, dest, replacements) {
     if (fs.lstatSync(src).isDirectory()) {
@@ -20,6 +23,20 @@ const utils = {
         content = content.replace(new RegExp(regex, 'gm'), replacements[regex])
       })
       fs.writeFileSync(dest, content)
+    }
+  },
+  appId(px){
+    // let px='/Users/zhengjiangrong/Documents/GitHub/weexplus/platforms/ios/weexplus/weexplus.xcodeproj/project.pbxproj'
+// var path=  process.cwd();
+// path+='/platforms/android/'+op.dir+'/settings.gradle'
+    var result=fs.readFileSync(px, 'utf8')
+// console.log(result)
+    let temp=result.split('\n')
+    for(let q in temp){
+      let res=temp[q]
+      if(res.indexOf('PRODUCT_BUNDLE_IDENTIFIER')!=-1){
+        return res.split('=')[1].replace(';','').trim()
+      }
     }
   },
 

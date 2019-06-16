@@ -2,6 +2,7 @@
 //加载所需要的模块
 const chalk = require('chalk');
 const http = require('http');
+const querystring = require('querystring');
 const url = require('url');
 const fs = require('fs');
 const path = require('path');
@@ -10,6 +11,7 @@ const update = require('./update.js')
 const log = require('./logger.js')
 const logger=require('./logger')
 const cp = require('child_process');
+const crypto = require('crypto')
 // const util = require('./util.js')
 
 //创建服务
@@ -33,9 +35,10 @@ const start = (dpath, port, ifopen) => {
         if (ifopen == undefined) {
             ifopen = true;
         }
+        var url = 'http://' + ip.address() + ":" + port;
         if (ifopen) {
             try {
-                var url = 'http://' + ip.address() + ":" + port;
+
                 util.open(url)
             }
             catch (ex) {
@@ -45,8 +48,6 @@ const start = (dpath, port, ifopen) => {
             }
         }
         log.info("静态资源服务器已启动===>[" + chalk.red(dpath) + "]");
-
-
         // util.excute('npm run dev')
 
     });
@@ -74,6 +75,7 @@ const processRequest = (request, response, dpath) => {
             "txt": "text/plain",
             "wav": "audio/x-wav",
             "wma": "audio/x-ms-wma",
+            "mp3": "audio/mpeg",
             "wmv": "video/x-ms-wmv",
             "xml": "text/xml"
         };
@@ -81,6 +83,15 @@ const processRequest = (request, response, dpath) => {
 
         //request里面切出标识符字符串
         var requestUrl = request.url;
+
+        var arg = url.parse(requestUrl).query;
+
+        //将arg参数字符串反序列化为一个对象
+        var params = querystring.parse(arg)
+        let md5=params.md5
+        // let md5=''
+
+
 
         //url模块的parse方法 接受一个字符串，返回一个url对象,切出来路径
         var pathName = url.parse(requestUrl).pathname;
@@ -121,8 +132,10 @@ const processRequest = (request, response, dpath) => {
                 response.writeHead(404, {"content-type": "text/html"});
                 response.end("<h1>404 Not Found</h1>");
             }
+
             //没出错 并且文件存在
             if (!err && stats.isFile()) {
+
                 readFile(filePath, contentType);
             }
             //如果路径是目录
@@ -167,13 +180,18 @@ const processRequest = (request, response, dpath) => {
 
             //读取文件的函数
             function readFile(filePath, contentType) {
-
-                if(filePath.endsWith(".js")&&filePath.indexOf('dist')!=-1)
+                // console.log('11111x:'+filePath)
+                if(filePath.endsWith(".js")&&filePath.indexOf('dist')!=-1&&filePath.indexOf('file')==-1)
                 {
+                    // console.log('ssssxxxx')
+                    // response.writeHead(200, {"content-type": "text/javascript;charset=UTF-8'"});
                     response.writeHead(200, {"content-type": "text/html"});
-                    response.end(readJs(filePath));
+                    let res= readJs(filePath,md5)
+                    // console.log(res)
+                    response.end(res);
                     return;
                 }
+                // console.log('22222')
                 response.writeHead(200, {"content-type": contentType + ';charset=utf-8'});
                 //建立流对象，读文件
                 var stream = fs.createReadStream(filePath);
@@ -189,16 +207,48 @@ const processRequest = (request, response, dpath) => {
     })
 }
 
+function md5(s){
+    const md5 = crypto.createHash('md5');
 
-function readJs(path)
-{
+// 往hash对象中添加摘要内容
+    md5.update(s);
+    let res= md5.digest('hex')
+    // console.log('md5本地'res)
+    return res
 
-    const content=  fs.readFileSync(path, 'utf8')
-    const appboard=readAppboard();
-    var s=  appboard+content;
-    // console.log(s)
-    return s;
 }
+function readJs(path,md5s)
+{
+    // console.log('xxxx')
+    const content=  fs.readFileSync(path, 'utf8')
+    // console.log(content)
+
+    const appboard=readAppboard();
+    // console.log('md5-app='+md5s)
+    // console.log('md5-cli='+md5(appboard))
+    var s=  appboard+content;
+    if(md5s!=md5(appboard)&&md5s!=undefined){
+        // console.log('md5-app='+md5s)
+        // console.log('md5-cli='+md5(appboard))
+        // console.log('md5不同，重新appboard')
+        // s=  appboard+'weexplus_split_weexplus'+content;
+        s=  appboard+'/*******weexplus_split_weexplus******/'+content;
+        // s=  appboard+content;
+        return s
+    }
+    return content
+}
+
+
+// function readJs(path,md5s)
+// {
+//
+//     const content=  fs.readFileSync(path, 'utf8')
+//     const appboard=readAppboard();
+//     var s=  appboard+content;
+//     // console.log(s)
+//     return s;
+// }
 
 function readAppboard() {
     if (!update.isRootDir()) {
@@ -219,7 +269,7 @@ function readAppboard() {
     // logger.log(p)
     if(!fs.existsSync(p))
     {
-         return "";
+        return "";
     }
     const appBoardContent = fs.readFileSync(p, 'utf8')
     // console.log(appBoardContent)

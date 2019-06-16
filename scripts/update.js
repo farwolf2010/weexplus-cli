@@ -23,7 +23,7 @@ const copy = require('copy-concurrently')
 			}
 			
 		     // console.log('dsdsd='+path+'/platforms/android/')
-		     var s='farwolf,farwolf.weex,farwolf.business,sdk,galleryfinal,sdk,umeng,wechat,oss,jpush,alipay'
+		     var s='farwolf,farwolf.weex,farwolf.business,sdk,galleryfinal'
 			 fs.readdir(path+'/platforms/android/',function(err,paths){
 		        var count=0;
 		        paths.forEach(function(px,index){
@@ -169,7 +169,7 @@ const copy = require('copy-concurrently')
 			}
 			
 		      
-           var s='farwolf,farwolf.weex,farwolf.business,sdk,WXDevtool,oss,LMTowDatePicker,jpush,wechat'
+           var s='farwolf,farwolf.weex,farwolf.business,sdk,LMTowDatePicker,WXDevtool'
 	 	    fs.readdir(path+'/platforms/ios/'+dir+'/',function(err,paths){
         
              var count=0

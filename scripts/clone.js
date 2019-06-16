@@ -6,9 +6,12 @@ const utils = require('./utils')
 const ios = require('./run/ios.js')
 function download(dir,appid,name){
 
+    // console.log(dir+'='+appid+'='+name)
+    // return
   const downloadRepo = require('download-repo')
   // download egoist/tooling's master branch archive
   downloadRepo('weexplus/boilerplate', {target: 'boilerplate'})
+  // downloadRepo('weexplus/boilerplate', {target: 'boilerplate'})
   .then(() => {
     // console.log('done, `cd tooling` to check out more!')
       
@@ -61,7 +64,7 @@ function rename(dir,name)
   // console.log('name='+name)
     var path=dir+'/platforms/ios/'+dir+'/'+dir+'/Info.plist'
     replace({
-        regex: "weexplus",
+        regex: "demo",
         replacement: name,
         paths: [path],
         recursive: true,
@@ -83,6 +86,8 @@ function renameAll(dir,appid,name)
      renameAndroidAppId(dir,appid)
      renameAndroidDir(dir,appid)
      renameIos(dir,appid)
+    // console.log('修改ignore')
+    renameIgnore(dir,dir)
      setTimeout(()=>{
 
            rename(dir,name)
@@ -107,53 +112,84 @@ function install(dir)
 function renameAndroidAppId(dir,appid)
 {
       var pathjava=dir+'/platforms/android/weexplus/app/src/main/java/com/farwolf/weexplus/MVApplication.java'
-      var wxentry=dir+'/platforms/android/weexplus/app/src/main/java/com/farwolf/weexplus/wxapi/WXEntryActivity.java'
-      var payentry=dir+'/platforms/android/weexplus/app/src/main/java/com/farwolf/weexplus/wxapi/WXPayEntryActivity.java'
+      // var wxentry=dir+'/platforms/android/weexplus/app/src/main/java/com/farwolf/weexplus/wxapi/WXEntryActivity.java'
+      // var payentry=dir+'/platforms/android/weexplus/app/src/main/java/com/farwolf/weexplus/wxapi/WXPayEntryActivity.java'
       var pathxml=dir+'/platforms/android/weexplus/app/src/main/AndroidManifest.xml'
       var gradle=dir+'/platforms/android/weexplus/app/build.gradle'
       var properties=dir+'/platforms/android/weexplus/gradle.properties'
 
+
       replace({
         regex: "com.farwolf.weexplus",
         replacement: appid,
-        paths: [pathjava,pathxml,gradle,properties,wxentry,payentry],
+        paths: [pathjava,pathxml,gradle,properties],
         recursive: true,
         silent: true,
       });
 }
 
+function renameIgnore(dir,projectname)
+{
+
+    var ignore=dir+'/.gitignore'
+    let p=process.cwd()
+    p=p+'/'+ignore
+    replace({
+        regex: "weexplus",
+        replacement: projectname,
+        paths: [p],
+        recursive: true,
+        silent: true,
+    });
+}
 
 function renameAndroidDir(dir,appid)
 {
-      var path=dir+'/platforms/android/weexplus/app/src/main/java/'
-      var q=appid.split('.')
-           
-      fs.rename(path+'com',path+q[0],()=>{
-         
-             path=path+'/'+q[0]+'/'
-             fs.rename(path+'farwolf',path+q[1],()=>{
-                 path=path+'/'+q[1]+'/'
+      var path=process.cwd()+'/'+dir+'/platforms/android/weexplus/app/src/main/java/'
+      // process.chdir(path)
+      // console.log(process.cwd())
+      file.copyFile(path+'com/farwolf/weexplus/MVApplication.java',path+'MVApplication.java')
+      let temp=path+appid.replace(/\./g,'/')
+      file.del(path+'/com')
+      file.mkdir(temp)
+      file.copyFile(path+'MVApplication.java',temp+'/MVApplication.java')
+      file.del(path+'MVApplication.java')
+      fs.renameSync(dir+'/platforms/android/weexplus',dir+'/platforms/android/'+dir)
 
-                 fs.rename(path+'weexplus',path+q[2],()=>{
-                       
-                          var propath=dir+'/platforms/android/weexplus'
-                           fs.rename(propath,dir+'/platforms/android/'+dir,()=>{
-                                  
-                                  file.del(dir+'/platforms/android/'+dir+'/.idea')
 
-                           })
-                  })
+    // console.log('temp===='+temp)
 
-            })
 
-      })
+
+
+      // var q=appid.split('.')
+      //
+      // fs.rename(path+'com',path+q[0],()=>{
+      //
+      //        path=path+'/'+q[0]+'/'
+      //        fs.rename(path+'farwolf',path+q[1],()=>{
+      //            path=path+'/'+q[1]+'/'
+      //
+      //            fs.rename(path+'weexplus',path+q[2],()=>{
+      //
+      //                     var propath=dir+'/platforms/android/weexplus'
+      //                      fs.rename(propath,dir+'/platforms/android/'+dir,()=>{
+      //
+      //                             file.del(dir+'/platforms/android/'+dir+'/.idea')
+      //
+      //                      })
+      //             })
+      //
+      //       })
+      //
+      // })
 
 }
 
 
 function renameIos(dir,appid)
 {
-      var path=dir+'/platforms/ios/weexplus/weexplus.xcodeproj/project.pbxproj'
+      var path=process.cwd()+'/'+dir+'/platforms/ios/weexplus/weexplus.xcodeproj/project.pbxproj'
        // console.log(path)
       replace({
         regex: "com.farwolf.weexplus",

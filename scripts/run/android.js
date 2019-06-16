@@ -33,12 +33,16 @@ function runAndroid(options) {
     process.chdir('platforms/android/'+dir)
     var path=  process.cwd();
       // console.log(path)
-    return utils.exec('gradle assembleDebug')
+    let cmd='./gradlew assembleDebug'
+    if (process.platform != 'darwin'&&process.platform != 'linux'){
+      cmd='gradlew.bat assembleDebug'
+    }
+    return utils.exec(cmd)
   })
   .then(()=>{
-    var path=  process.cwd();
+    var px=  process.cwd();
     var open=require('open')
-    process.chdir(path+'/app/build/outputs/apk')
+    process.chdir(path.join(px,'app/build/outputs/apk/debug'))
     return utils.exec('adb install -r app-debug.apk')
   })
   .then(()=>{
@@ -57,13 +61,18 @@ function publish(options)
   })
   .then(()=>{
     process.chdir('platforms/android/'+dir)
-    return utils.exec('gradle assembleRelease')
+    // return utils.exec('gradle assembleRelease')
+    let cmd='./gradlew assembleRelease'
+    if (process.platform != 'darwin'&&process.platform != 'linux'){
+      cmd='gradlew.bat assembleRelease'
+    }
+    return utils.exec(cmd)
   })
   .then(()=>{
     var path=  process.cwd();
     console.log(path)
     var open=require('open')
-    open(path+'/app/build/outputs/apk')
+    open(path+'/app/build/outputs/apk/release')
   })
 
 }

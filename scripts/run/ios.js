@@ -70,7 +70,7 @@ const prepareIOS = ({ options }) => {
   logger.verbose(`prepareIOS  with ${options}.`);
   return new Promise((resolve, reject) => {
     const rootPath = process.cwd();
-    console.log('rootPath='+rootPath)
+    // console.log('rootPath='+rootPath)
     if (!utils.checkIOS(rootPath)) {
       logger.error('iOS project not found !');
       logger.info(`You should run ${chalk.blue('weex create')} or ${chalk.blue('weex platform add ios')} first`);
@@ -260,10 +260,9 @@ const buildApp = ({ device, xcodeProject, options, rootPath, configs,resolve, re
   catch (e) {
     reject(e);
   }
-  console.log('resolve='+resolve)
+  // console.log('resolve='+resolve)
 
   const scheme = projectInfo.project.schemes[0];
-
   if (device.isSimulator) {
    return _buildOnSimulator({ scheme, device, xcodeProject, options, resolve, reject, rootPath, configs });
   }
@@ -279,14 +278,20 @@ const buildApp = ({ device, xcodeProject, options, rootPath, configs,resolve, re
  * @param {Object} options
  */
 const _buildOnSimulator = ({ scheme, device, rootPath, xcodeProject, options, configs, resolve, reject }) => {
-  logger.info(`Buiding project...`);
+  logger.info(`buildOnSimulator Buiding project...`);
+  // logger.info('xxx--0=')
   try {
-    if (_.isEmpty(configs)) {
-      reject(new Error('iOS config dir not detected.'));
-    }
-    childprocess.execSync(`xcodebuild -${xcodeProject.isWorkspace ? 'workspace' : 'project'} ${xcodeProject.name} -scheme ${scheme} -configuration Debug -destination id=${device.udid} -sdk iphonesimulator -derivedDataPath build clean build`, { encoding: 'utf8' });
+    // logger.info('xxx0=')
+    // if (_.isEmpty(configs)) {
+    //   reject(new Error('iOS config dir not detected.'));
+    // }
+    // logger.info('xxx1=')
+    let cmd='xcodebuild -workspace '+scheme+'.xcworkspace -scheme '+scheme+' -configuration Debug -destination id='+device.udid+' -sdk iphonesimulator -derivedDataPath build '
+    // logger.info('xxx2='+cmd)
+    return utils.exec(cmd);
   }
   catch (e) {
+    logger.info('ex'+e)
     reject(e);
   }
   resolve({ device, xcodeProject, options, configs });
@@ -301,7 +306,7 @@ const _buildOnSimulator = ({ scheme, device, rootPath, xcodeProject, options, co
 const _buildOnRealDevice = ({ scheme, device, xcodeProject, options,  rootPath, configs,resolve  }) => {
 
   logger.info(`Buiding project...`);
-  let cmd='xcodebuild -workspace '+scheme+'.xcworkspace -scheme '+scheme+' -configuration Debug -sdk iphoneos clean build'
+  let cmd='xcodebuild -workspace '+scheme+'.xcworkspace -scheme '+scheme+' -configuration Debug -sdk iphoneos'
   return utils.exec(cmd)
 
 
@@ -315,6 +320,7 @@ const _buildOnRealDevice = ({ scheme, device, xcodeProject, options,  rootPath, 
  */
 const runApp = ({ device, xcodeProject, options, configs }) => {
   return new Promise((resolve, reject) => {
+    logger.info('runApp')
     if (device.isSimulator) {
       _runAppOnSimulator({ device, xcodeProject, options, configs, resolve, reject });
     }
@@ -393,8 +399,14 @@ const _runAppOnSimulator = ({ device, xcodeProject, options, configs, resolve, r
     return;
   }
 
+
+  let p=process.cwd()
+  p+='/'+options.dir+'.xcodeproj/project.pbxproj'
+  // console.log('xxss='+p)
+  let appId=utils.appId(p)
+  // console.log('xxss='+appId)
   try {
-    childprocess.execSync(`xcrun simctl launch booted ${configs.AppId}`, { encoding: 'utf8' });
+    childprocess.execSync(`xcrun simctl launch booted ${appId}`, { encoding: 'utf8' });
   }
   catch (e) {
     reject(e);
@@ -481,7 +493,10 @@ const runIOS = (options) => {
   .then(chooseDevice)
   .then((p)=>{
       buildApp(p).then(()=>{
+        logger.info('start run')
         runApp(p)
+      },(exp)=>{
+        console.log(exp)
       })
   })
 
@@ -492,7 +507,7 @@ function publish(options)
 {
   let dir=options.dir
   let root=process.cwd()+'/platforms/ios/'+dir+'/'
-  console.log(root)
+  // console.log(root)
   let outputPath=root+'products/'
   utils.exec('rm -rf dist/*').then(()=>{
     return utils.exec('weex-builder src/native dist --ext --min')
@@ -509,17 +524,17 @@ function publish(options)
     // let cmd=  'xcodebuild -workspace  '+p.scheme+'.xcworkspace -scheme '+p.scheme+' -configuration Release -sdk iphoneos build archive -archivePath  '+root+'/archive'
     // let cmd='xcodebuild -workspace '+scheme+'.xcworkspace -scheme '+scheme+' -configuration Debug -sdk iphoneos clean build'
     let cmd='xcodebuild -workspace '+root+dir+'.xcworkspace -scheme '+dir+' -configuration Release -sdk iphoneos build archive -archivePath '+outputPath+'/archive'
-    console.log('xx='+cmd)
+    // console.log('xx='+cmd)
     return utils.exec(cmd)
   })
   .then(()=>{
        let cmd='xcodebuild -exportArchive —exportFormat ipa -archivePath '+outputPath+'/archive.xcarchive -exportPath  '+outputPath+dir+'.ipa -exportOptionsPlist  '+root+'ExportOption.plist'
-    console.log('xx='+cmd)
+    // console.log('xx='+cmd)
     return utils.exec(cmd)
   })
   .then(()=>{
     var path=  process.cwd();
-    console.log(path)
+    // console.log(path)
     var open=require('open')
     open(outputPath+dir+'.ipa')
   })

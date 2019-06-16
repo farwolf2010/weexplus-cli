@@ -19,8 +19,12 @@ const android=require('./scripts/run/android')
 const ios=require('./scripts/run/ios')
 const utils = require('./scripts/utils')
 const util = require('./scripts/util')
+const open = require('./scripts/open')
 const proxy = require('./scripts/proxy')
 const qrserver = require('./scripts/qrserver')
+const plugin = require('./scripts/plugin')
+const {kill} = require('./scripts/kill.js');
+const hotupdate = require('./scripts/hotupdate.js');
 var cp = require('child_process');
 var p=require('path')
 const HOST='127.0.0.1'
@@ -58,7 +62,7 @@ program
      {
         serverport=9999
      }
-          // cp.exec('npm run dev', function () {
+     // cp.exec('npm run dev', function () {
           //           });
 
       log.info(chalk.green("启动weexplusx监听 dir:"+dir+" serverport:"+serverport+" socketport:"+socketport));
@@ -106,35 +110,43 @@ program
 
 
      
-      watch.start('./src/img',true,function(){  
+      watch.start('./src/native/img',true,function(){
        // console.log('img change')
        //  console.log(chalk.green("img 同步!"));
           log.info("img 同步!");
        file.del('dist/img')
        file.mkdir('dist/img')
-       file.copy('./src/img','./dist/img')
+       file.copy('./src/native/img','./dist/img')
       
       });
 
-        watch.start('./src/font',true,function(){  
+        watch.start('./src/native/font',true,function(){
        // console.log('img change')
             log.info("font 同步!");
        file.del('dist/font')
        file.mkdir('dist/font')
-       file.copy('./src/font','./dist/font')
+       file.copy('./src/native/font','./dist/font')
       
       });
 
 
-         watch.start('./src/file',true,function(){  
+         watch.start('./src/native/file',true,function(){
        // console.log('img change')
              log.info("file 同步!");
        file.del('dist/file')
        file.mkdir('dist/file')
-       file.copy('./src/file','./dist/file')
+       file.copy('./src/native/file','./dist/file')
       
       });
-  
+
+    watch.start('./src/web',true,function(){
+      // console.log('img change')
+      log.info("web 同步!");
+      file.del('dist/web')
+      file.mkdir('dist/web')
+      file.copy('./src/web','./dist/web')
+
+    });
  
       watch.start('./configs/weexplus.json',false,function(){
           console.log(chalk.green("weexplus.json 同步!"));
@@ -146,21 +158,29 @@ program
       log.info("img 同步!");
        file.del('dist/img')
        file.mkdir('dist/img')
-       file.copy('./src/img','./dist/img')
+       file.copy('./src/native/img','./dist/img')
 
 
       log.info("font 同步!");
        file.del('dist/font')
        file.mkdir('dist/font')
-       file.copy('./src/font','./dist/font')
+       file.copy('./src/native/font','./dist/font')
 
       log.info("file 同步!");
        file.del('dist/file')
        file.mkdir('dist/file')
-       file.copy('./src/file','./dist/file')
-        
+       file.copy('./src/native/file','./dist/file')
+
+      log.info("web 同步!");
+      file.del('dist/web')
+      file.mkdir('dist/web')
+      file.copy('./src/web','./dist/web')
+
         install(dir);
-        
+    var ip = require('ip');
+    log.info(chalk.green("如果没有弹出浏览器,请手动打开此地址：" + 'http://' + ip.address() + ":8890/pages/"));
+
+    // console.log('[' + chalk.green('weexplus') + '] . 服务运行在此地址', '', chalk.green( 'http://' + ip.address() + ":8890/pages"))
         // utils.exec('npm run dev')
       
   })
@@ -186,19 +206,19 @@ program
       log.info("img 同步!")
        file.del('dist/img')
        file.mkdir('dist/img')
-       file.copy('./src/img','./dist/img')
+       file.copy('./src/native/img','./dist/img')
 
 
       log.info("font 同步!")
        file.del('dist/font')
        file.mkdir('dist/font')
-       file.copy('./src/font','./dist/font')
+       file.copy('./src/native/font','./dist/font')
 
 
        log.info("file 同步!");
        file.del('dist/file')
        file.mkdir('dist/file')
-       file.copy('./src/file','./dist/file')
+       file.copy('./src/native/file','./dist/file')
         
         install(dir);
 
@@ -231,7 +251,7 @@ program
 
   program
   .command('update [src]')
-  .description('更新weexplus')
+  .description('更新weexplus原生项目')
   .action((src) => {
        update.start(src)
   })
@@ -250,12 +270,13 @@ program
   })
 
 
-// program
-//   .command('dev')
-//   .description('更新weexplus')
-//   .action(() => {
-//        utils.exec('npm run dev')
-//   })
+program
+  .command('zip')
+  .description('制作热更新zip包')
+  .action(() => {
+      // hotupdate.zip()
+      hotupdate.make()
+  })
 
 program
   .command('publish <platform>')
@@ -334,11 +355,11 @@ program
   })
 
 
-   program
-    .command('test')
-    .action(() => {
-        server.readAppboard();
-    })
+   // program
+   //  .command('test')
+   //  .action(() => {
+   //      server.readAppboard();
+   //  })
 
 
 
@@ -359,7 +380,116 @@ program
      clone.renameProject(project,appid,name)
   })
 
- 
+
+program
+.command('plugin')
+.arguments('<command> <url>')
+.description('添加(add url),删除(remove name),创建(create name),发布(publish name) 插件')
+.option('--i [value]','只改ios插件')
+.option('--a [value]','只改android插件')
+.option('--tag [value]','插件版本')
+.action((command,url,option) => {
+  var path=process.cwd();
+  var dir=p.basename(path)
+  let op={}
+  op.url=url
+  op.dir=dir
+  if(option.tag)
+    op.tag=option.tag
+  let platform='all'
+  if(option.i&&option.a){
+    platform='all'
+  }else{
+    if(option.i){
+      platform='ios'
+    }
+    if(option.a){
+      platform='android'
+    }
+  }
+  op.platform=platform
+  if(command=='add'){
+    plugin.addNew(op)
+  }else  if(command=='remove'){
+      op.name=url
+    plugin.removeNew(op)
+  }else  if(command=='create'){
+      op.name=url
+      plugin.make(op)
+  }else  if(command=='publish'){
+      op.name=url
+      plugin.publish(op)
+  }
+})
+
+program
+    .command('open')
+    // .arguments('<platform>')
+    .option('--i [value]','打开ios项目,不传默认打开android')
+    // .option('--a [value]','打开android项目')
+    .description('打开原生工程')
+    .action((option) => {
+        // console.log(option)
+        let op={}
+        var path=process.cwd();
+        var dir=p.basename(path)
+        op.dir=dir
+        if(option.i)
+        op.platform='ios'
+        else{
+            op.platform='android'
+        }
+
+        open.open(op)
+    })
+
+// program
+// .command('info')
+// .arguments('<name>')
+// .description('查看插件信息')
+// .action((name) => {
+//   plugin.getInfo({name:name},(res)=>{
+//     if(res.err_code!=0){
+//       log.fatal('没有这个插件')
+//     }
+//     log.info('ios:'+res.ios_url)
+//     log.info('android:'+res.ios_url)
+//   })
+// })
+
+program
+    .command('doc')
+    .description('打开weexplus文档')
+    .action((name) => {
+        opn = require('open');
+        opn('https://weexplus.github.io/doc/quickstart/')
+    })
+
+program
+    .command('debug')
+    .description('开启debug')
+    .action((name) => {
+        var port=8089
+
+        kill(port)
+        setTimeout(()=>{
+            utils.exec('weex debug --channelid 123456',false).then(()=>{
+                utils.exec('open google')
+            })
+        },300)
+    })
+
+
+
+program
+    .command('video')
+    .description('打开weexplus视频')
+    .action((name) => {
+        opn = require('open');
+        opn('https://i.youku.com/i/UNTc4OTg0OTYxMg==?spm=a2hzp.8244740.0.0&previewpage=1')
+    })
+
+
 
 function startClone (targetDir,project,appid,name) {
   // fs.mkdirSync(targetDir)
@@ -416,4 +546,5 @@ function mkdirsSync (dirpath) {
  
 
 program.parse(process.argv)
+module.exports={file}
 
