@@ -17,13 +17,13 @@
 			<key>metadata</key>
 			<dict>
 				<key>bundle-identifier</key>
-				<string>com.openbook.mars.iosx</string>
+				<string>com.apple.xcode.dsym.com.foundersc.wit</string>
 				<key>bundle-version</key>
-				<string>2.0.2</string>
+				<string>1.0</string>
 				<key>kind</key>
 				<string>software</string>
 				<key>title</key>
-				<string>开卷</string>
+				<string>见证平台</string>
 			</dict>
 		</dict>
 	</array>
