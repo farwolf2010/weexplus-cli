@@ -39,6 +39,9 @@
                 $(iframe).on('load', function (e) { 
                      var url=iframe.contentWindow.location.href        
                       createQRCode(url)
+                      if(url.indexOf('.js')<=-1){
+                          $('#urldes').html('请选中js文件再扫描，否则手机上会报错</br>'+url)
+                      }else
                       $('#urldes').html(url)
                       
                 })

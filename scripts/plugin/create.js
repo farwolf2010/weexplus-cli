@@ -63,13 +63,14 @@ function make(op){
 
 
 function remove(op){
-    console.log(op)
+    // console.log(op)
     op.action='remove'
     if(op.platform=='all'){
         changeSetting(op,false)
         changeGradle(op,false)
         changeProfile(op,false,()=>{
             removePorject(op)
+            updateVersion(op)
         })
     }else if(op.platform=='android'){
         changeSetting(op,false)
@@ -83,8 +84,8 @@ function remove(op){
 }
 
 function updateVersion(op){
-    var path=  process.cwd();
-    path+='/plugins/plugins.json'
+    var path=  op.pluginsDir
+
     let j={}
     if(fs.existsSync(path)){
          j= ut.readJson(path)
@@ -305,9 +306,11 @@ function download(op){
                             addGradle(op)
                             invokeScript(op)
                         }else{
-                            changeProfile(op,true,()=>{
-                                invokeScript(op)
-                            })
+
+                                changeProfile(op,true,()=>{
+                                    invokeScript(op)
+                                })
+
                         }
                     })
                     return
@@ -421,6 +424,10 @@ function changeGradle(op,add){
     result=result.replace(res,px)
     fs.writeFileSync(path,result,{encode:'utf-8'})
     // console.log(result)
+    if(add)
+    log.info('插件'+op.name+' android端添加完成!')
+    else
+    log.info('插件'+op.name+' android端移除完成!')
 
 
 }
@@ -497,16 +504,22 @@ function changeProfile(op,add,callback){
         return;
     }
     process.chdir(process.cwd()+'/platforms/ios/'+op.dir)
-    log.info('开始执行pod install!')
-    util.exec('pod install').then(()=>{
-        if(add)
-            log.info('插件'+op.name+' ios端添加完成!')
-        else{
-            log.info('插件'+op.name+' ios端清理完成!')
-        }
+    if(process.platform=='darwin'){
+        log.info('开始执行pod install!')
+        util.exec('pod install').then(()=>{
+            if(add)
+                log.info('插件'+op.name+' ios端添加完成!')
+            else{
+                log.info('插件'+op.name+' ios端清理完成!')
+            }
+            if(callback)
+                callback()
+        })
+    }else{
         if(callback)
             callback()
-    })
+    }
+
 
 
 

@@ -1,6 +1,6 @@
 {
   "name": "weexplus",
-  "version": "1.5.9",
+  "version": "1.6.7",
   "description": "weexplus cli",
   "keywords": [
     "weex",
@@ -63,7 +63,11 @@
     "unzip2": "0.2.5",
     "user-home": "^2.0.0",
     "ws": "^3.3.3",
-    "archiver":"0.20.0"
+    "archiver": "0.20.0",
+    "gm": "^1.23.1",
+    "images": "^3.0.2",
+    "weex-builder": "^0.4.1",
+    "node-fetch": "^2.6.0"
   },
   "optionalDependencies": {
     "ios-deploy": "1.9.4"

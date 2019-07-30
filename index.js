@@ -25,6 +25,7 @@ const qrserver = require('./scripts/qrserver')
 const plugin = require('./scripts/plugin')
 const {kill} = require('./scripts/kill.js');
 const hotupdate = require('./scripts/hotupdate.js');
+const env = require('./scripts/env/index');
 var cp = require('child_process');
 var p=require('path')
 const HOST='127.0.0.1'
@@ -91,19 +92,19 @@ program
      	 {
 				   fs.mkdir('dist',function(){//创建目录
                          // server.start('./dist/',serverport);
-                 if(option.qr==undefined)
-                 {
-                    qrserver.start('./dist/',serverport)
-                 }
-                 else
-                 {
-                    server.start('./dist/',serverport);
-                 }
-					      watch.start('./dist',true,function(){
-					         socket.send(HOST,socketport)									    
-					      });
+                         if(option.qr==undefined)
+                         {
+                            qrserver.start('./dist/',serverport)
+                         }
+                         else
+                         {
+                            server.start('./dist/',serverport);
+                         }
+                          watch.start('./dist',true,function(){
+                             socket.send(HOST,socketport)
+                          });
 
-				     })
+                })
      	 }
 
      })
@@ -389,11 +390,18 @@ program
 .option('--a [value]','只改android插件')
 .option('--tag [value]','插件版本')
 .action((command,url,option) => {
+    if(!update.isRootDir())
+    {
+        console.log(chalk.red('必须在根项目根目录操作！'));
+        return;
+
+    }
   var path=process.cwd();
   var dir=p.basename(path)
   let op={}
   op.url=url
   op.dir=dir
+    op.pluginsDir=path+'/plugins/plugins.json'
   if(option.tag)
     op.tag=option.tag
   let platform='all'
@@ -424,19 +432,20 @@ program
 
 program
     .command('open')
-    // .arguments('<platform>')
-    .option('--i [value]','打开ios项目,不传默认打开android')
+    .arguments('<platform>')
+    // .option('--i [value]','打开ios项目,不传默认打开android')
     // .option('--a [value]','打开android项目')
     .description('打开原生工程')
-    .action((option) => {
-        // console.log(option)
+    .action((platform) => {
+        // console.log(platform)
         let op={}
         var path=process.cwd();
         var dir=p.basename(path)
         op.dir=dir
-        if(option.i)
-        op.platform='ios'
-        else{
+        // if(platform=='ios')
+        // op.platform='ios'
+        op.platform=platform
+        if(op.platform===''){
             op.platform='android'
         }
 
@@ -463,6 +472,20 @@ program
     .action((name) => {
         opn = require('open');
         opn('https://weexplus.github.io/doc/quickstart/')
+    })
+
+
+program
+    .command('env' )
+    .option('--platform [value]','平台（android,ios）')
+    .description('自动配置开发环境')
+    .action((option) => {
+        let sys='all'
+        if(option.platform)
+        {
+          sys=option.platform
+        }
+        env.check({platform:sys})
     })
 
 program

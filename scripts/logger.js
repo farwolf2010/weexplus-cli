@@ -28,7 +28,7 @@ exports.log = function(...args) {
 
 exports.warning = function(...args) {
     const msg = format.apply(format, args)
-    console.log('[' + chalk.blue(prefix) + ']', sep, chalk.yellow(msg))
+    console.log('[' + chalk.yellow(prefix) + ']', sep, chalk.yellow(msg))
 }
 
 /**
@@ -40,7 +40,7 @@ exports.warning = function(...args) {
 exports.fatal = function(...args) {
     if (args[0] instanceof Error) args[0] = args[0].message.trim()
     const msg = format.apply(format, args)
-    console.log('[' + chalk.blue(prefix) + ']', sep, chalk.red(msg))
+    console.log('[' + chalk.red(prefix) + ']', sep, chalk.red(msg))
     process.exit(1)
 }
 
@@ -52,7 +52,7 @@ exports.fatal = function(...args) {
 
 exports.success = function(...args) {
     const msg = format.apply(format, args)
-    console.log('[' + chalk.blue(prefix) + ']', sep, chalk.green(msg))
+    console.log('[' + chalk.green(prefix) + ']', sep, chalk.green(msg))
 }
 
 exports.sep = function() {

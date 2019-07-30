@@ -4,7 +4,7 @@ function post(url,param,header,callback){
   var request = require('request');
   header['Content-Type']='application/x-www-form-urlencoded'
   var  options = {
-    method: 'post',
+    method: 'get',
     url: url,
     form: param,
     headers:header
