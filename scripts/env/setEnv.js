@@ -92,17 +92,22 @@ function setWinEnv(p,callback) {
     let cmd="setx  "+p.envName+'  \"'+p.path+"\""
     console.log(cmd)
     util.exec(cmd).then(()=>{
-        cmd="setx  PATH \"%PATH%;%"+p.envName+"%"
-        if(p.weg){
-            cmd=cmd+'\\'+p.weg
-        }
-        cmd=cmd+'\";'
-        console.log(cmd)
-        util.exec(cmd).then(()=>{
-             logger.info('设置成功，请关闭当前窗口，再重新打开！')
-            if(callback)
-            callback()
+
+        getWinPath().then((path)=>{
+            cmd='setx  PATH \"'+path+';%'+p.envName+'%'
+            if(p.weg){
+                cmd=cmd+'\\'+p.weg
+            }
+            cmd=cmd+'\";'
+            console.log(cmd)
+            util.exec(cmd).then(()=>{
+                logger.info('设置成功，请关闭当前窗口，再重新打开！')
+                if(callback)
+                    callback()
+            })
         })
+
+
     })
 }
 
@@ -148,6 +153,34 @@ function getCmd(cmd,callback){
         }
         callback(px)
     });
+
+}
+
+function getWinPath() {
+    return new Promise((reslove,reject)=>{
+        let cmd='ECHO %PATH%'
+        getCmd(cmd,(res)=>{
+            // console.log(res[0])
+            let px=res[0]
+            // console.log(px.length)
+            let sp=px.split(';')
+            // console.log(sp)
+            let ary=[]
+            let temp=' '
+            sp.forEach((item)=>{
+                // console.log(item+temp.indexOf(item))
+                if(temp.indexOf(item)==-1){
+                    ary.push(item)
+                    temp+=item+';'
+                }
+            })
+            let s=''
+            ary.forEach((item)=>{
+                s+=item+';'
+            })
+            reslove(s)
+        })
+    })
 
 }
 
